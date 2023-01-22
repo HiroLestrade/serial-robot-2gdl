@@ -1,3 +1,7 @@
+#include "timer.h"
+
+Timer t(10);
+
 int art2Pot = A6;
 int art2MotorA = 5;
 int art2MotorB = 6;
@@ -10,15 +14,15 @@ void setup(){
 
   setpoint = 300;
 
-  Serial.begin(9600);
+  //Serial.begin(9600);
 }    
  
 void loop(){
-  if(Serial.available()){
+  /*if(Serial.available()){
     String msg = Serial.readStringUntil('\n');
     setpoint = msg != "" ? msg.toDouble() : setpoint;
     delay(100);
-  }
+  }*/
 
   input = analogRead(art2Pot);
   output = computePID(input, setpoint);  
@@ -40,15 +44,11 @@ void loop(){
 }
  
 double computePID(double input, double setpoint){  
-  static unsigned long  currentTime   = 0; //t_i
-  static unsigned long  previousTime  = 0; //t_(i-1)
-  double                elapsedTime   = 0; //dt
-
   double                error         = 0; //e_i  
   static double         lastError     = 0; //e_(i-1)
   static double         accumError    = 0; //sum(e_(i))
   double                rateError     = 0; //de/dt
-  double                output        = 0;
+  static double         output        = 0;
 
   int maxError = 10;
   int minError = -10; 
@@ -59,24 +59,25 @@ double computePID(double input, double setpoint){
 
   int offset = 60;
   
-  currentTime = millis();                              
-  elapsedTime = (double)(currentTime - previousTime);     
+  t.update();                     
         
-  error = setpoint - input; 
-  error = error < maxError && error > minError ? 0 : error; //Error range
-                    
-  accumError += error * elapsedTime;                      
-  rateError = (error - lastError) / elapsedTime;         
-  
-  if(error == 0) output = 0;
-  else {
-    output = kp*error + kd*rateError + ki*accumError;
-    output = output > 0 ? output + offset : output; //Inertial static offset
-    output = output < 0 ? output - offset : output;
-  }
-  
-  lastError = error;                                      
-  previousTime = currentTime;                     
+  if(t.diff()){
+    error = setpoint - input; 
+    error = error < maxError && error > minError ? 0 : error; //Error range
+                      
+    accumError += error * t.getElapsedTime();                      
+    rateError = (error - lastError) / t.getElapsedTime();         
+    
+    if(error == 0) output = 0;
+    else {
+      output = kp*error + kd*rateError + ki*accumError;
+      output = output > 0 ? output + offset : output; //Inertial static offset
+      output = output < 0 ? output - offset : output;
+    }
+    
+    lastError = error;                                      
+    t.reset();
+  }       
     
   return output;
 }
